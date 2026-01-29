@@ -7,31 +7,38 @@ const Voter = require("./models/Voter");
 
 const app = express();
 
-// Middleware
+// ===== MIDDLEWARE ===== //
 app.use(cors());
 app.use(express.json());
 
-// Connect to MongoDB
-mongoose.connect(process.env.MONGO_URI)
+// ===== CONNECT TO MONGODB ===== //
+mongoose.connect(process.env.MONGO_URI, {
+  useNewUrlParser: true,
+  useUnifiedTopology: true,
+})
   .then(() => console.log("MongoDB connected"))
-  .catch(err => console.log("MongoDB error:", err.message));
+  .catch(err => console.error("MongoDB error:", err.message));
 
 // ===== VOTERS API ===== //
 
 // Get all voters (with optional search)
 app.get("/voters", async (req, res) => {
-  const { q } = req.query;
-  let filter = {};
-  if (q) {
-    filter = {
-      $or: [
-        { name: { $regex: q, $options: "i" } },
-        { enrollment_no: { $regex: q, $options: "i" } }
-      ]
-    };
+  try {
+    const { q } = req.query;
+    let filter = {};
+    if (q) {
+      filter = {
+        $or: [
+          { name: { $regex: q, $options: "i" } },
+          { enrollment_no: { $regex: q, $options: "i" } }
+        ]
+      };
+    }
+    const voters = await Voter.find(filter).limit(500);
+    res.json(voters);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
-  const voters = await Voter.find(filter).limit(500);
-  res.json(voters);
 });
 
 // Mark voter as voted
@@ -52,7 +59,8 @@ app.post("/voters/:id/vote", async (req, res) => {
 const buildPath = path.join(__dirname, "../frontend/build");
 app.use(express.static(buildPath));
 
-app.get("*", (req, res) => {
+// Fix wildcard for React SPA routing
+app.get("/*", (req, res) => {
   res.sendFile(path.join(buildPath, "index.html"));
 });
 
